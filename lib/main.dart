@@ -5,12 +5,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:convert';
 import 'package:intl/intl.dart';
 
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final isDarkMode = prefs.getBool('isDarkMode') ?? false;
-
-  // Load saved tasks
   final String? tasksString = prefs.getString('tasks');
   final List<Task> savedTasks = [];
   if (tasksString != null) {

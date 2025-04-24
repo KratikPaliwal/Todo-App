@@ -4,10 +4,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:convert';
 import 'package:intl/intl.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  tz.initializeTimeZones(); // Initialize time zones
+  await NotificationHelper.initialize(); // Initialize notifications
+
   final prefs = await SharedPreferences.getInstance();
   final isDarkMode = prefs.getBool('isDarkMode') ?? false;
   final String? tasksString = prefs.getString('tasks');
@@ -18,7 +24,6 @@ void main() async {
       savedTasks.add(Task.fromJson(taskMap));
     }
   }
-
   runApp(MyApp(isDarkMode: isDarkMode, savedTasks: savedTasks));
 }
 
@@ -99,24 +104,30 @@ class TaskProvider extends ChangeNotifier {
   List<Task> _tasks = [];
   TaskProvider(List<Task> initialTasks) {
     _tasks = initialTasks;
+    _scheduleAllNotifications();
   }
+
   List<Task> get tasks => _tasks;
 
   void addTask(Task task) {
     _tasks.add(task);
+    NotificationHelper.scheduleNotification(task); // Schedule notification
     _saveTasks();
     notifyListeners();
   }
 
-  // Updated deleteTask method
   void deleteTask(Task task) {
-    _tasks.remove(task); // Remove the task by reference
+    NotificationHelper.cancelNotification(task); // Cancel notification
+    _tasks.remove(task);
     _saveTasks();
     notifyListeners();
   }
 
   void updateTask(int index, Task task) {
+    final oldTask = _tasks[index];
+    NotificationHelper.cancelNotification(oldTask); // Cancel old notification
     _tasks[index] = task;
+    NotificationHelper.scheduleNotification(task); // Schedule new notification
     _saveTasks();
     notifyListeners();
   }
@@ -126,9 +137,60 @@ class TaskProvider extends ChangeNotifier {
     final List<Map<String, dynamic>> taskMaps = _tasks.map((task) => task.toJson()).toList();
     await prefs.setString('tasks', jsonEncode(taskMaps));
   }
+
+  void _scheduleAllNotifications() {
+    for (final task in _tasks) {
+      NotificationHelper.scheduleNotification(task);
+    }
+  }
 }
 
 
+class NotificationHelper {
+  static final FlutterLocalNotificationsPlugin _notificationsPlugin =
+  FlutterLocalNotificationsPlugin();
+
+  static Future<void> initialize() async {
+    const AndroidInitializationSettings initializationSettingsAndroid =
+    AndroidInitializationSettings('@mipmap/ic_launcher'); // Replace with your app icon
+
+    final InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+    );
+
+    await _notificationsPlugin.initialize(initializationSettings);
+  }
+
+  static Future<void> scheduleNotification(Task task) async {
+    if (task.deadline == null) return;
+
+    final DateTime deadline = task.deadline!;
+    final int notificationId = task.hashCode; // Unique ID for each task
+
+    await _notificationsPlugin.zonedSchedule(
+      notificationId,
+      'Deadline Passed',
+      'The deadline for "${task.title}" has passed.',
+      tz.TZDateTime.from(deadline.add(const Duration(minutes: 1)), tz.local),
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'deadline_channel', // Channel ID
+          'Deadline Notifications', // Channel name
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+      ),
+      androidAllowWhileIdle: true,
+      uiLocalNotificationDateInterpretation:
+      UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  }
+
+  static Future<void> cancelNotification(Task task) async {
+    final int notificationId = task.hashCode;
+    await _notificationsPlugin.cancel(notificationId);
+  }
+}
 class ThemeProvider extends ChangeNotifier {
   bool isDarkMode;
 

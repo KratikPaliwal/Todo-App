@@ -97,11 +97,9 @@ class MyApp extends StatelessWidget {
 
 class TaskProvider extends ChangeNotifier {
   List<Task> _tasks = [];
-
   TaskProvider(List<Task> initialTasks) {
     _tasks = initialTasks;
   }
-
   List<Task> get tasks => _tasks;
 
   void addTask(Task task) {
@@ -110,8 +108,9 @@ class TaskProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void deleteTask(int index) {
-    _tasks.removeAt(index);
+  // Updated deleteTask method
+  void deleteTask(Task task) {
+    _tasks.remove(task); // Remove the task by reference
     _saveTasks();
     notifyListeners();
   }
@@ -128,6 +127,7 @@ class TaskProvider extends ChangeNotifier {
     await prefs.setString('tasks', jsonEncode(taskMaps));
   }
 }
+
 
 class ThemeProvider extends ChangeNotifier {
   bool isDarkMode;
@@ -213,7 +213,7 @@ class _HomePageState extends State<HomePage> {
         itemBuilder: (context, index) {
           final task = taskProvider.tasks[index];
           return Dismissible(
-            key: UniqueKey(),
+            key: ValueKey(task), // Use the task object as the key
             background: Container(
               color: Colors.red,
               alignment: Alignment.centerRight,
@@ -226,16 +226,18 @@ class _HomePageState extends State<HomePage> {
                 context: context,
                 builder: (BuildContext context) {
                   return AlertDialog(
-                    backgroundColor: isDarkMode
-                        ? const Color(0xFF303030)
-                        : Colors.white,
+                    backgroundColor:
+                    isDarkMode ? const Color(0xFF303030) : Colors.white,
                     title: const Text('Confirm Delete'),
                     content: Text('Are you sure you want to delete "${task.title}"?'),
                     actions: [
                       TextButton(
-                        child: Text('Cancel', style: TextStyle(
-                          color: isDarkMode ? Colors.white70 : Colors.black54,
-                        )),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: isDarkMode ? Colors.white70 : Colors.black54,
+                          ),
+                        ),
                         onPressed: () => Navigator.of(context).pop(false),
                       ),
                       TextButton(
@@ -247,7 +249,20 @@ class _HomePageState extends State<HomePage> {
                 },
               );
             },
-            onDismissed: (_) => taskProvider.deleteTask(index),
+            onDismissed: (_) {
+              taskProvider.deleteTask(task); // Pass the task object
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Task "${task.title}" deleted successfully.'),
+                  backgroundColor: Colors.red,
+                  behavior: SnackBarBehavior.floating,
+                  margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              );
+            },
             child: Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               color: Theme.of(context).cardColor,
@@ -303,39 +318,72 @@ class _HomePageState extends State<HomePage> {
                       ),
                     )
                         : null,
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete),
-                      color: isDarkMode ? Colors.white70 : Colors.black54,
-                      onPressed: () async {
-                        final delete = await showDialog<bool>(
-                          context: context,
-                          builder: (BuildContext context) {
-                            return AlertDialog(
-                              backgroundColor: isDarkMode
-                                  ? const Color(0xFF303030)
-                                  : Colors.white,
-                              title: const Text('Confirm Delete'),
-                              content: Text('Are you sure you want to delete "${task.title}"?'),
-                              actions: [
-                                TextButton(
-                                  child: Text('Cancel', style: TextStyle(
-                                    color: isDarkMode ? Colors.white70 : Colors.black54,
-                                  )),
-                                  onPressed: () => Navigator.of(context).pop(false),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.check_circle_outline),
+                          color: Colors.green,
+                          onPressed: () {
+                            // Remove the task
+                            taskProvider.deleteTask(task);
+
+                            // Show a SnackBar with a motivational message
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Congrats on completing "${task.title}"! 🎉\n"${_getMotivationalQuote()}"',
+                                  style: TextStyle(
+                                    color: isDarkMode ? Colors.white : Colors.black,
+                                  ),
                                 ),
-                                TextButton(
-                                  child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                                  onPressed: () => Navigator.of(context).pop(true),
+                                backgroundColor: Colors.green,
+                                behavior: SnackBarBehavior.floating,
+                                margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                              ],
+                                duration: const Duration(seconds: 3),
+                              ),
                             );
                           },
-                        );
-
-                        if (delete == true) {
-                          taskProvider.deleteTask(index);
-                        }
-                      },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete),
+                          color: isDarkMode ? Colors.white70 : Colors.black54,
+                          onPressed: () async {
+                            final delete = await showDialog<bool>(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return AlertDialog(
+                                  backgroundColor:
+                                  isDarkMode ? const Color(0xFF303030) : Colors.white,
+                                  title: const Text('Confirm Delete'),
+                                  content: Text('Are you sure you want to delete "${task.title}"?'),
+                                  actions: [
+                                    TextButton(
+                                      child: Text(
+                                        'Cancel',
+                                        style: TextStyle(
+                                          color: isDarkMode ? Colors.white70 : Colors.black54,
+                                        ),
+                                      ),
+                                      onPressed: () => Navigator.of(context).pop(false),
+                                    ),
+                                    TextButton(
+                                      child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                      onPressed: () => Navigator.of(context).pop(true),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                            if (delete == true) {
+                              taskProvider.deleteTask(task); // Pass the task object
+                            }
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -362,7 +410,6 @@ class _HomePageState extends State<HomePage> {
     final today = DateTime(now.year, now.month, now.day);
     final tomorrow = today.add(const Duration(days: 1));
     final deadlineDate = DateTime(deadline.year, deadline.month, deadline.day);
-
     String dateStr;
     if (deadlineDate == today) {
       dateStr = 'Today';
@@ -371,14 +418,24 @@ class _HomePageState extends State<HomePage> {
     } else {
       dateStr = DateFormat('MMM d').format(deadline);
     }
-
     return '$dateStr, ${DateFormat('h:mm a').format(deadline)}';
+  }
+
+  String _getMotivationalQuote() {
+    final List<String> quotes = [
+      "You're capable of amazing things!",
+      "Success is the sum of small efforts.",
+      "Keep going, you're doing great!",
+      "Every accomplishment starts with the decision to try.",
+      "Believe in yourself and all that you are.",
+      "Hard work pays off, keep pushing!",
+    ];
+    return quotes[DateTime.now().millisecondsSinceEpoch % quotes.length];
   }
 
   void _showAddTaskDialog(BuildContext context) {
     final taskProvider = Provider.of<TaskProvider>(context, listen: false);
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
     final TextEditingController titleController = TextEditingController();
     final TextEditingController descriptionController = TextEditingController();
     DateTime? selectedDate;
@@ -387,8 +444,7 @@ class _HomePageState extends State<HomePage> {
     showDialog(
       context: context,
       builder: (context) => Dialog(
-        backgroundColor:
-        isDarkMode ? const Color(0xFF303030) : Colors.white,
+        backgroundColor: isDarkMode ? const Color(0xFF303030) : Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
         ),
@@ -419,39 +475,31 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: titleController,
-                  style: TextStyle(
-                      color: isDarkMode ? Colors.white : Colors.black),
+                  style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
                   decoration: InputDecoration(
                     hintText: 'Enter task title',
                     hintStyle: TextStyle(
-                        color: isDarkMode
-                            ? const Color(0xFFBDB6C8)
-                            : Colors.grey),
+                        color: isDarkMode ? const Color(0xFFBDB6C8) : Colors.grey),
                     enabledBorder: OutlineInputBorder(
                       borderSide: BorderSide(
-                          color: const Color(0xFFB39DDB).withOpacity(
-                              isDarkMode ? 0.5 : 1),
+                          color: const Color(0xFFB39DDB).withOpacity(isDarkMode ? 0.5 : 1),
                           width: 1.5),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderSide: BorderSide(
-                          color: const Color(0xFF9575CD).withOpacity(
-                              isDarkMode ? 0.7 : 1),
+                          color: const Color(0xFF9575CD).withOpacity(isDarkMode ? 0.7 : 1),
                           width: 2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     filled: true,
-                    fillColor: isDarkMode
-                        ? const Color(0xFF424242)
-                        : Colors.grey[50],
+                    fillColor: isDarkMode ? const Color(0xFF424242) : Colors.grey[50],
                     contentPadding:
                     const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
                   ),
                   autofocus: true,
                 ),
                 const SizedBox(height: 16),
-
                 // Description field
                 Text(
                   'Description',
@@ -463,39 +511,31 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: descriptionController,
-                  style: TextStyle(
-                      color: isDarkMode ? Colors.white : Colors.black),
+                  style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
                   decoration: InputDecoration(
                     hintText: 'Enter task description',
                     hintStyle: TextStyle(
-                        color: isDarkMode
-                            ? const Color(0xFFBDB6C8)
-                            : Colors.grey),
+                        color: isDarkMode ? const Color(0xFFBDB6C8) : Colors.grey),
                     enabledBorder: OutlineInputBorder(
                       borderSide: BorderSide(
-                          color: const Color(0xFFB39DDB).withOpacity(
-                              isDarkMode ? 0.5 : 1),
+                          color: const Color(0xFFB39DDB).withOpacity(isDarkMode ? 0.5 : 1),
                           width: 1.5),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderSide: BorderSide(
-                          color: const Color(0xFF9575CD).withOpacity(
-                              isDarkMode ? 0.7 : 1),
+                          color: const Color(0xFF9575CD).withOpacity(isDarkMode ? 0.7 : 1),
                           width: 2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     filled: true,
-                    fillColor: isDarkMode
-                        ? const Color(0xFF424242)
-                        : Colors.grey[50],
+                    fillColor: isDarkMode ? const Color(0xFF424242) : Colors.grey[50],
                     contentPadding:
                     const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
                   ),
                   maxLines: 3,
                 ),
                 const SizedBox(height: 16),
-
                 // Deadline section
                 Text(
                   'Deadline (Optional)',
@@ -505,7 +545,6 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-
                 // Date & Time pickers
                 Row(
                   children: [
@@ -523,8 +562,7 @@ class _HomePageState extends State<HomePage> {
                           ),
                           style: OutlinedButton.styleFrom(
                             side: BorderSide(
-                              color: const Color(0xFFB39DDB).withOpacity(
-                                  isDarkMode ? 0.5 : 1),
+                              color: const Color(0xFFB39DDB).withOpacity(isDarkMode ? 0.5 : 1),
                             ),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
@@ -573,8 +611,7 @@ class _HomePageState extends State<HomePage> {
                           ),
                           style: OutlinedButton.styleFrom(
                             side: BorderSide(
-                              color: const Color(0xFFB39DDB).withOpacity(
-                                  isDarkMode ? 0.5 : 1),
+                              color: const Color(0xFFB39DDB).withOpacity(isDarkMode ? 0.5 : 1),
                             ),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
@@ -608,9 +645,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 24),
-
                 // Buttons
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -622,9 +657,7 @@ class _HomePageState extends State<HomePage> {
                       child: Text(
                         'Cancel',
                         style: TextStyle(
-                          color: isDarkMode
-                              ? const Color(0xFFB39DDB)
-                              : Colors.black54,
+                          color: isDarkMode ? const Color(0xFFB39DDB) : Colors.black54,
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                         ),
@@ -633,8 +666,7 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(width: 12),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                        isDarkMode
+                        backgroundColor: isDarkMode
                             ? const Color(0xFF5E35B1)
                             : const Color(0xFF232025),
                         foregroundColor: Colors.white,
@@ -642,8 +674,7 @@ class _HomePageState extends State<HomePage> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 28, vertical: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
                         side: BorderSide(
                             color: isDarkMode
                                 ? const Color(0xFF3E3750)
@@ -663,13 +694,11 @@ class _HomePageState extends State<HomePage> {
                               selectedTime!.minute,
                             );
                           }
-
                           taskProvider.addTask(Task(
                             title: title,
                             description: descriptionController.text.trim(),
                             deadline: deadline,
                           ));
-
                           Navigator.of(context).pop();
                         }
                       },
